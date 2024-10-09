@@ -1,0 +1,1 @@
+{"comment": null, "model": "MNNMDA", "dataset_name": "HMDAD", "seed": 666, "mode": "CVS1", "n_splits": 5, "equal_train_num": false, "equal_test_num": false, "noise_rate": null, "maxiter": 300, "alpha": 1.0, "beta": 100.0}
