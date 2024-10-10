@@ -60,62 +60,6 @@ def calculate_combined_similarity(disease_matrices, microbe_matrices):
 
     return sim_disease, sim_microbe
 
-def matrixPow(Matrix, n):                           # 计算矩阵的n次幂
-    """
-    计算矩阵的n次幂。
-
-    参数:
-    - Matrix: 输入矩阵
-    - n: 幂次
-
-    返回:
-    - 矩阵的n次幂
-    """
-    if(type(Matrix) == list):
-        Matrix = np.array(Matrix)
-    if(n == 1):
-        return Matrix
-    else:
-        return np.matmul(Matrix, matrixPow(Matrix, n - 1))
-
-def calculate_metapath_optimized(mm, dd, dm, n):        #计算n层元路径
-    """
-    优化版：计算微生物-疾病第n层元路径。
-
-    参数:
-    - mm: 微生物相似度矩阵
-    - dd: 疾病相似度矩阵
-    - md: 微生物疾病关联矩阵
-    - n: 元路径的层数
-
-    返回:
-    - n层元路径矩阵
-    """
-    # 基本情况，如果n为1，直接计算并返回第一层元路径矩阵
-    md = dm.T
-    DD = dm @ mm @ md @ dd
-    DM = dm @ mm
-    # MM = md @ dd @ dm @ mm
-    # MD = md @ dd
-    if n == 1:
-    #    return mm @ md @ dd
-        return dd @ dm @ mm
-    else:
-        #k = n / 2
-        k = n
-        k = int(k)
-        DK = matrixPow(DD, k)
-        deep_A = dd @ DK @ DM
-        #MK = matrixPow(MM, k)
-        #deep_A = mm @ MK @ MD
-
-        #if n % 2 ==0:
-        #    deep_A = mm @ MK @ MD
-        #else:
-        #    deep_A = mm @ MK
-
-    return deep_A
-
 
 
 def get_all_the_samples_old(A):
@@ -139,134 +83,6 @@ def get_all_the_samples_old(A):
 
 
 
-def get_all_the_samples_old_22(A_in):
-    A = A_in.copy()
-    m, n = A.shape
-    pairs = []
-    for i in range(m):
-        for j in range(n):
-            if A[i, j] == 1:
-                j_hat = np.argmin(np.where(A[i] == 0, A[i], np.inf))
-                # 将找到的位置在A中置为-1
-                if j_hat < n:  # 确保找到的索引在范围内
-                    A[i, j_hat] = -1
-
-                pairs.append([i, j, 1])
-                pairs.append([i, j_hat, 0])
-    return pairs
-
-
-def get_all_pairs(A_in, deep_A):
-    A = A_in.copy()
-    m, n = A.shape
-    pairs = []
-    for i in range(m):
-        for j in range(n):
-            if A[i, j] == 1:
-                j_hat = np.argmin(np.where(A[i] == 0, deep_A[i], np.inf))
-                # 将找到的位置在A中置为-1
-                if j_hat < n:  # 确保找到的索引在范围内
-                    A[i, j_hat] = -1
-
-                # 在deep_A的第j_hat列中找到最小值且A中对应位置为0的元素的行索引i_hat
-                #i_hat = np.argmin(np.where(A[:, j_hat] == 0, deep_A[:, j_hat], np.inf))
-                i_hat = np.argmin(np.where(A[:, j] == 0, deep_A[:, j], np.inf))
-                # 将找到的位置在A中置为-1
-                if i_hat < m:  # 确保找到的索引在范围内
-                    #A[i_hat, j] = -1
-                    pass
-
-                #pairs.append([i, j, i_hat, j_hat])
-                pairs.append([j, i, j_hat, i_hat])
-    return pairs
-
-def get_all_pairs_random(A_in, deep_A):
-    A = A_in.copy()
-    m, n = A.shape
-    pairs = []
-
-    for i in range(m):
-        for j in range(n):
-            if A[i, j] == 1:
-                # 75th percentile for deep_A[i] where A[i] is 0
-                valid_indices_i = np.where(A[i] == 0)[0]
-                if len(valid_indices_i) > 0:
-                    q75 = np.percentile(deep_A[i, valid_indices_i], 75)
-                else:
-                    continue  # Skip if no valid zero elements are found
-
-                # Generate j_hat and ensure it is valid
-                j_hat = -1
-                while j_hat < 0 or j_hat >= n or A[i, j_hat] != 0:
-                    j_hat = int(np.clip(np.random.normal(loc=q75, scale=1), 0, n - 1))
-
-                # Mark this element to prevent reuse
-                A[i, j_hat] = -1
-
-                # 75th percentile for deep_A[:, j] where A[:, j] is 0
-                valid_indices_j = np.where(A[:, j] == 0)[0]
-                if len(valid_indices_j) > 0:
-                    q75_col = np.percentile(deep_A[valid_indices_j, j], 75)
-                else:
-                    continue  # Skip if no valid zero elements are found
-
-                # Generate i_hat and ensure it is valid
-                i_hat = -1
-                while i_hat < 0 or i_hat >= m or A[i_hat, j] != 0:
-                    i_hat = int(np.clip(np.random.normal(loc=q75_col, scale=1), 0, m - 1))
-
-                # Ensure the index is within range and corresponds to an element in A that is 0
-                if i_hat >= m or A[i_hat, j] != 0:
-                    continue
-
-                pairs.append([j, i, j_hat, i_hat])
-
-    return pairs
-
-
-def get_all_pairs_random(A_in):
-    A = A_in.copy()
-    m, n = A.shape
-    pairs = []
-    for i in range(m):
-        for j in range(n):
-            if A[i, j] == 1:
-                # 寻找第i行中A为0的所有列索引
-                zero_cols_in_row = np.where(A[i] == 0)[0]
-                if zero_cols_in_row.size > 0:  # 如果存在至少一个0
-                    j_hat = np.random.choice(zero_cols_in_row)  # 随机选择一个索引
-                    #A[i, j_hat] = -1  # 将找到的位置在A中置为-1
-
-                # 寻找第j列中A为0的所有行索引
-                zero_rows_in_col = np.where(A[:, j] == 0)[0]
-                if zero_rows_in_col.size > 0:  # 如果存在至少一个0
-                    i_hat = np.random.choice(zero_rows_in_col)  # 随机选择一个索引
-                    #A[i_hat, j] = -1  # 将找到的位置在A中置为-1
-
-                pairs.append(
-                    [i, j, i_hat if zero_rows_in_col.size > 0 else None, j_hat if zero_cols_in_row.size > 0 else None])
-
-    return pairs
-
-def get_all_pairs_random_2(A_in):
-    A = A_in.copy()
-    m, n = A.shape
-    pairs = []
-    for i in range(m):
-        for j in range(n):
-            if A[i, j] == 1:
-                # 寻找第i行中A为0的所有列索引
-                zero_cols_in_row = np.where(A[i] == 0)[0]
-                if zero_cols_in_row.size > 0:  # 如果存在至少一个0
-                    j_hat = np.random.choice(zero_cols_in_row)  # 随机选择一个索引
-
-
-                pairs.append([i, j, 1])
-                pairs.append([i, j_hat, 0])
-
-
-    return pairs
-
 
 # 定义函数获取非零数量
 def non_zero_count(*matrices):
@@ -286,21 +102,6 @@ def sim_cos( z1, z2):
     mmget = (mmget - mmget.min()) / (
                 mmget.max() - mmget.min())
     return mmget
-
-def constrate_loss_calculate(train_i_mic_feature_tensor,train_i_hat_mic_feature_tensor,
-                            train_j_disease_feature_tensor,train_j_hat_disease_feature_tensor, tau=1):
-    f = lambda x: torch.exp(x / tau)
-    i_j_sim = f(sim_cos(train_i_mic_feature_tensor, train_j_disease_feature_tensor))
-    i_j_hat_sim = f(sim_cos(train_i_mic_feature_tensor, train_j_hat_disease_feature_tensor))
-    i_hat_j_sim = f(sim_cos(train_i_hat_mic_feature_tensor, train_j_disease_feature_tensor))
-    diag_i_j_sim = i_j_sim.diag()
-    diag_i_j_hat_sim = i_j_hat_sim.diag()
-    diag_i_hat_j_sim = i_hat_j_sim.diag()
-
-    # constrate_loss = -torch.log(diag_i_j_sim / (diag_i_j_sim + diag_i_j_hat_sim + diag_i_hat_j_sim)).mean()
-    constrate_loss = ((diag_i_j_hat_sim + diag_i_hat_j_sim) / (diag_i_j_sim + diag_i_j_hat_sim + diag_i_hat_j_sim)).mean()
-    # constrate_loss = (diag_i_j_sim / (diag_i_j_sim + diag_i_j_hat_sim + diag_i_hat_j_sim)).mean()
-    return  constrate_loss
 
 
 def select_rows(A, selected_rows):
@@ -328,7 +129,6 @@ def select_rows(A, selected_rows):
     B = torch.mm(M, A)
 
     return B
-
 
 
 
@@ -559,15 +359,3 @@ def add_class_avg_to_node_features(class_avg_features, M_class_flags, pre_mid2_o
     return updated_node_features
 
 
-
- # linear2_outputs = [self.Linear2(mid2_out) for mid2_out in pre_mid2_outputs]
- #        dim2_Gouts = self.conv2(*linear2_outputs, edge_indices, edge_weights, non_zero)
- #        pre_dim2_outputs = [in2_layer + dim2_Gout for in2_layer, dim2_Gout in zip(linear2_outputs, dim2_Gouts)]
-
- #
- # linear2_outputs = [self.Linear2(mid2_out) for mid2_out in pre_mid2_outputs]
- #        dim2_Gouts = self.conv2(*linear2_outputs, edge_indices, edge_weights, non_zero)
- #        pre_dim2_outputs = [(in2_layer + dim2_Gout).to(torch.float32) for in2_layer, dim2_Gout in zip(linear2_outputs, dim2_Gouts)]
- #
- #        out = sum(pre_dim2_outputs)
- #        return out
